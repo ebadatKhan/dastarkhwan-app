@@ -1,0 +1,6 @@
+{
+  "name": "Dastarrkhwan",
+  "description": "Premium catering marketplace and event food planning platform for Karachi. Discover caterers, browse menus, and calculate event costs instantly.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": []
+}

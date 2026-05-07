@@ -1,0 +1,92 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() { return request.auth != null; }
+    function isVerified() { return isSignedIn() && request.auth.token.email_verified == true; }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    function isCatererOwner(catererId) { return isSignedIn() && (get(/databases/$(database)/documents/caterers/$(catererId)).data.ownerId == request.auth.uid); }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isAdmin() { return isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)); }
+
+    // --- Entity Validations ---
+
+    function isValidCaterer(data) {
+      return data.keys().hasAll(['name', 'specialty', 'area', 'image', 'description', 'ownerId', 'address']) &&
+             data.ownerId == request.auth.uid &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.specialty is string && data.area is string &&
+             data.image is string &&
+             data.description is string &&
+             data.address is string && data.address.size() > 0 && data.address.size() <= 300;
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['name', 'email']) &&
+             data.keys().size() <= 6 &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.email is string && data.email.size() <= 255;
+    }
+
+    function isValidBooking(data) {
+      return data.keys().hasAll(['userId', 'catererId', 'date', 'time', 'guests', 'address', 'status', 'totalCost']) &&
+             data.userId == request.auth.uid &&
+             isValidId(data.catererId) &&
+             data.guests is number && data.guests >= 1 && data.guests <= 5000 &&
+             data.status in ['pending', 'confirmed', 'completed', 'cancelled'];
+    }
+
+    // --- Routes ---
+
+    // Public Collections
+    match /caterers/{catererId} {
+      allow get, list: if true;
+      allow create: if isSignedIn() && isValidCaterer(incoming());
+      allow update: if (isAdmin() || (isCatererOwner(catererId) && isValidCaterer(incoming()))) && 
+                    incoming().ownerId == existing().ownerId;
+      allow delete: if isAdmin();
+
+      match /packages/{packageId} {
+        allow get, list: if true;
+        allow write: if isAdmin();
+      }
+    }
+
+    // User Profiles
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && isValidUser(incoming()) && incoming().role == 'user';
+      allow update: if isOwner(userId) && isValidUser(incoming()) && 
+                    incoming().role == existing().role && // Prevent self-promoting to admin
+                    incoming().diff(existing()).affectedKeys().hasOnly(['name', 'photoURL']);
+    }
+
+    // Bookings
+    match /bookings/{bookingId} {
+      allow get: if isOwner(existing().userId) || isAdmin();
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      
+      allow create: if isVerified() && 
+                    isValidBooking(incoming()) && 
+                    incoming().status == 'pending' &&
+                    incoming().createdAt == request.time &&
+                    (incoming().catererId in ['smart-suggested', 'mock-caterer-1'] || exists(/databases/$(database)/documents/caterers/$(incoming().catererId)));
+
+      allow update: if isOwner(existing().userId) &&
+                    isValidBooking(incoming()) &&
+                    incoming().createdAt == existing().createdAt &&
+                    incoming().userId == existing().userId &&
+                    // Action: Cancel
+                    (incoming().status == 'cancelled' && incoming().diff(existing()).affectedKeys().hasOnly(['status']));
+      
+      allow delete: if isAdmin();
+    }
+  }
+}

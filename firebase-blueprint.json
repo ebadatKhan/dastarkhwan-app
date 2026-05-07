@@ -1,0 +1,84 @@
+{
+  "entities": {
+    "Caterer": {
+      "title": "Caterer",
+      "description": "Details about a catering service provider.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "rating": { "type": "number" },
+        "reviews": { "type": "number" },
+        "specialty": { "type": "string" },
+        "area": { "type": "string" },
+        "image": { "type": "string" },
+        "verified": { "type": "boolean" },
+        "description": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "address": { "type": "string" }
+      },
+      "required": ["name", "rating", "reviews", "specialty", "area", "image", "verified", "ownerId", "address"]
+    },
+    "Package": {
+      "title": "Package",
+      "description": "A specific menu package offered by a caterer.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "pricePerPerson": { "type": "number" },
+        "items": { "type": "array", "items": { "type": "string" } },
+        "image": { "type": "string" },
+        "description": { "type": "string" }
+      },
+      "required": ["name", "pricePerPerson", "items"]
+    },
+    "Booking": {
+      "title": "Booking",
+      "description": "An event catering booking request.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "catererId": { "type": "string" },
+        "packageId": { "type": "string" },
+        "date": { "type": "string" },
+        "time": { "type": "string" },
+        "guests": { "type": "number" },
+        "address": { "type": "string" },
+        "notes": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "confirmed", "completed", "cancelled"] },
+        "totalCost": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "catererId", "date", "time", "guests", "address", "status", "totalCost", "createdAt"]
+    },
+    "User": {
+      "title": "User",
+      "description": "App user profile.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "role": { "type": "string", "enum": ["user", "admin"] }
+      },
+      "required": ["name", "email"]
+    }
+  },
+  "firestore": {
+    "/caterers/{catererId}": {
+      "schema": "Caterer",
+      "description": "Collection of catering providers."
+    },
+    "/caterers/{catererId}/packages/{packageId}": {
+      "schema": "Package",
+      "description": "Packages offered by a specific caterer."
+    },
+    "/bookings/{bookingId}": {
+      "schema": "Booking",
+      "description": "Customer bookings."
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile data."
+    }
+  }
+}
