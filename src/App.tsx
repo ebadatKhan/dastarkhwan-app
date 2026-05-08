@@ -27,6 +27,7 @@ import { Onboarding } from "./pages/Onboarding";
 import { BookingFlow } from "./pages/BookingFlow";
 import Checkout from "./pages/Checkout";
 import { Profile } from "./pages/Profile";
+import Explore from "./pages/Explore";
 
 // --- Components ---
 
@@ -234,7 +235,7 @@ export default function App() {
         <MobileLayout>
           <Routes>
             <Route path="/" element={<Home />} />
-            <Route path="/explore" element={<Home />} />
+            <Route path="/explore" element={<Explore />} />
             <Route path="/caterer/:id" element={<CatererDetail />} />
             <Route path="/calculator" element={<Calculator />} />
             <Route path="/profile" element={<Profile />} />

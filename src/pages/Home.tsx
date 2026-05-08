@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { 
   MapPin, 
   Star, 
@@ -18,8 +18,6 @@ import { getCaterers } from "../services/firestoreService";
 export const Home = () => {
   const navigate = useNavigate();
   const [caterers, setCaterers] = useState<any[]>([]);
-  const [filteredCaterers, setFilteredCaterers] = useState<any[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [userArea, setUserArea] = useState<string | null>(null);
   const [isDetecting, setIsDetecting] = useState(false);
@@ -250,11 +248,9 @@ export const Home = () => {
         const data = await getCaterers();
         const initialList = data && data.length > 0 ? data : allCaterers;
         setCaterers(initialList);
-        setFilteredCaterers(initialList);
       } catch (err) {
         console.error(err);
         setCaterers(allCaterers);
-        setFilteredCaterers(allCaterers);
       } finally {
         setLoading(false);
       }
@@ -272,7 +268,6 @@ export const Home = () => {
     navigator.geolocation.getCurrentPosition(
       (position) => {
         // Mocking area detection based on coordinates for Karachi
-        // In a real app, you'd use a Reverse Geocoding API
         const { latitude, longitude } = position.coords;
         console.log(`Location: ${latitude}, ${longitude}`);
         
@@ -282,12 +277,6 @@ export const Home = () => {
           const randomArea = areas[Math.floor(Math.random() * areas.length)];
           setUserArea(randomArea);
           setIsDetecting(false);
-          
-          // Filter caterers by area if we have matches
-          const nearby = caterers.filter(c => c.area?.toLowerCase().includes(randomArea.toLowerCase()));
-          if (nearby.length > 0) {
-            setFilteredCaterers(nearby);
-          }
         }, 1500);
       },
       (error) => {
@@ -299,13 +288,7 @@ export const Home = () => {
   };
 
   const handleCategoryClick = (catName: string) => {
-    if (selectedCategory === catName) {
-      setSelectedCategory(null);
-      setFilteredCaterers(caterers);
-    } else {
-      setSelectedCategory(catName);
-      setFilteredCaterers(caterers.filter(c => c.category === catName || c.specialty.includes(catName)));
-    }
+    navigate("/explore", { state: { category: catName } });
   };
 
   return (
@@ -354,6 +337,18 @@ export const Home = () => {
             </motion.button>
           </div>
         </div>
+
+        {/* Search CTA */}
+        <div className="mt-6">
+          <button
+            onClick={() => navigate("/explore")}
+            className="flex w-full items-center gap-4 rounded-[24px] border-2 border-brand-beige bg-white p-5 text-left transition-all hover:border-brand-green hover:shadow-xl hover:shadow-brand-green/5"
+          >
+            <Search size={22} className="text-brand-charcoal/30" />
+            <span className="font-bold text-brand-charcoal/40">Search Mughlai, BBQ, Biryani...</span>
+          </button>
+        </div>
+
         <motion.h2 
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -387,7 +382,6 @@ export const Home = () => {
       <div className="no-scrollbar overflow-x-auto px-6 mt-4">
         <div className="flex gap-5 pb-4">
           {categories.map((cat) => {
-            const isActive = selectedCategory === cat.name;
             return (
               <button 
                 key={cat.name} 
@@ -398,34 +392,23 @@ export const Home = () => {
                   <motion.div 
                     whileHover={{ y: -6, scale: 1.08 }}
                     whileTap={{ y: 0, scale: 0.95 }}
-                    className={`flex h-[76px] w-[76px] items-center justify-center rounded-[28px] text-4xl transition-all duration-300 relative z-10 overflow-hidden ${
-                      isActive 
-                        ? "bg-brand-green text-brand-gold shadow-[0_12px_24px_-8px_rgba(25,71,51,0.6)] border-b-4 border-brand-charcoal/30" 
-                        : "bg-white border-b-4 border-brand-beige shadow-[0_8px_15_px_-3px_rgba(0,0,0,0.1)] hover:shadow-[0_12px_20px_-5px_rgba(0,0,0,0.15)]"
-                    }`}
+                    className="flex h-[76px] w-[76px] items-center justify-center rounded-[28px] text-4xl transition-all duration-300 relative z-10 overflow-hidden bg-white border-b-4 border-brand-beige shadow-[0_8px_15_px_-3px_rgba(0,0,0,0.1)] hover:shadow-[0_12px_20px_-5px_rgba(0,0,0,0.15)]"
                   >
                     {/* Realistic Category Photo */}
                     <img 
                       src={cat.image} 
                       alt={cat.name} 
-                      className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${isActive ? "opacity-40" : "opacity-100"}`}
+                      className="absolute inset-0 w-full h-full object-cover opacity-100"
                       referrerPolicy="no-referrer"
                     />
                     {/* Glossy Overlay */}
                     <div className="absolute -top-1/2 -left-1/2 w-full h-full bg-white/10 rotate-45 pointer-events-none" />
                     <span className="relative z-10 font-black text-xs text-white uppercase drop-shadow-md">
-                      {isActive ? "" : cat.name.charAt(0)}
+                      {cat.name.charAt(0)}
                     </span>
                   </motion.div>
-                  {/* Subtle 3D Glow for active state */}
-                  {isActive && (
-                    <motion.div 
-                      layoutId="categoryPulse"
-                      className="absolute inset-0 bg-brand-green/20 rounded-[28px] blur-xl"
-                    />
-                  )}
                 </div>
-                <span className={`text-[12px] font-bold tracking-tight transition-colors ${isActive ? "text-brand-green" : "text-brand-charcoal/60"}`}>
+                <span className="text-[12px] font-bold tracking-tight text-brand-charcoal/60">
                   {cat.name}
                 </span>
               </button>
@@ -434,56 +417,69 @@ export const Home = () => {
         </div>
       </div>
 
-      {/* Featured Section */}
-      <section className="mt-10 px-6">
-        <div className="mb-6 flex items-center justify-between">
-          <div className="flex flex-col">
-            <h3 className="font-display text-2xl font-bold tracking-tight">
-              {selectedCategory ? `${selectedCategory} Specials` : "Featured Caterers"}
-            </h3>
-            {selectedCategory && (
-              <p className="text-xs font-bold text-brand-charcoal/40 uppercase tracking-widest mt-1">
-                {filteredCaterers.length} options found
-              </p>
-            )}
-          </div>
-          <button className="text-sm font-bold text-brand-green">View all</button>
+      {/* Recommended Horizontal Section */}
+      <section className="mt-10">
+        <div className="px-6 mb-6 flex items-center justify-between">
+          <h3 className="font-display text-2xl font-bold tracking-tight">Recommended <span className="text-brand-gold">for You</span></h3>
+          <button onClick={() => navigate("/explore")} className="text-sm font-bold text-brand-green">See All</button>
         </div>
-        
-        <div className="grid gap-8">
-          {loading ? (
-             <div className="flex justify-center p-10">
-               <motion.div 
-                 animate={{ rotate: 360 }}
-                 transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
-                 className="h-10 w-10 border-4 border-brand-green border-t-transparent rounded-full"
-               />
-             </div>
-          ) : filteredCaterers.length > 0 ? (
-            filteredCaterers.map((cat, i) => (
-              <motion.div
-                key={cat.id}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.1 }}
-              >
-                <CatererCard 
-                  {...cat}
-                  onClick={() => navigate(`/caterer/${cat.id}`)}
-                />
-              </motion.div>
-            ))
-          ) : (
-            <div className="py-20 text-center">
-              <div className="mb-4 inline-flex h-20 w-20 items-center justify-center rounded-3xl bg-brand-beige/50 text-brand-charcoal/20">
-                <Search size={40} />
+        <div className="no-scrollbar flex gap-6 overflow-x-auto px-6 pb-6">
+          {caterers.slice(0, 5).map((cat) => (
+            <motion.div 
+              key={cat.id} 
+              whileHover={{ y: -5 }}
+              onClick={() => navigate(`/caterer/${cat.id}`)}
+              className="min-w-[280px] group relative overflow-hidden rounded-[32px] bg-white border border-brand-beige shadow-lg cursor-pointer"
+            >
+              <div className="h-40 overflow-hidden relative">
+                <img src={cat.image} alt={cat.name} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" referrerPolicy="no-referrer" />
+                <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-full flex items-center gap-1 shadow-sm">
+                  <Star size={10} className="fill-brand-gold text-brand-gold" />
+                  <span className="text-[10px] font-black">{cat.rating}</span>
+                </div>
               </div>
-              <h4 className="font-bold text-brand-charcoal">No caterers found</h4>
-              <p className="text-sm text-brand-charcoal/40 px-10 mt-2">Try selecting another category or check back later.</p>
-            </div>
-          )}
+              <div className="p-4">
+                <h4 className="font-display text-lg font-bold text-brand-charcoal">{cat.name}</h4>
+                <p className="text-xs text-brand-charcoal/40 font-medium mb-2">{cat.specialty}</p>
+                <div className="flex items-center justify-between">
+                  <span className="text-brand-green font-black text-sm">Rs. {cat.price}<span className="text-[10px] font-bold opacity-50 ml-1">/ head</span></span>
+                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-brand-gold/10 text-brand-gold">
+                    <ChevronRight size={16} />
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          ))}
         </div>
       </section>
+
+      {/* Categories Grid (Simplified) */}
+      <div className="px-6 mt-10">
+        <div className="mb-6">
+           <h3 className="font-display text-2xl font-bold tracking-tight">Browse by <span className="text-brand-green">Event</span></h3>
+        </div>
+        <div className="grid grid-cols-3 gap-4">
+          {categories.slice(0, 6).map((cat) => (
+            <button 
+              key={cat.name} 
+              onClick={() => handleCategoryClick(cat.name)}
+              className="flex flex-col items-center gap-2"
+            >
+              <div className="relative h-20 w-20 overflow-hidden rounded-2xl border-2 border-brand-beige group hover:border-brand-green transition-colors">
+                <img src={cat.image} alt={cat.name} className="h-full w-full object-cover transition-transform group-hover:scale-110" referrerPolicy="no-referrer" />
+                <div className="absolute inset-0 bg-brand-charcoal/20" />
+              </div>
+              <span className="text-[11px] font-bold text-brand-charcoal/60 uppercase tracking-wider">{cat.name}</span>
+            </button>
+          ))}
+        </div>
+        <button 
+          onClick={() => navigate("/explore")}
+          className="mt-6 w-full py-4 rounded-2xl border border-brand-beige text-brand-green font-bold text-sm bg-white hover:bg-brand-cream/50"
+        >
+          View All Categories
+        </button>
+      </div>
 
       {/* Price Calculator Promo */}
       <motion.div 
