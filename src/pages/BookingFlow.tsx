@@ -19,6 +19,7 @@ import { auth } from "../lib/firebase";
 export const BookingFlow = () => {
   const [step, setStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const suggestion = location.state?.suggestion;
@@ -45,27 +46,32 @@ export const BookingFlow = () => {
         navigate("/profile");
         return;
       }
-      setIsSubmitting(true);
-      try {
-        const bookingInfo = {
-          ...formData,
-          catererId: suggestion ? "smart-suggested" : "mock-caterer-1",
-          packageName: suggestion?.packageName || "Standard Menu",
-          totalCost: formData.guests * (suggestion?.pricePerHead || 1200),
-          items: suggestion?.dishes || []
-        };
-        
-        await createBooking(bookingInfo);
-        
-        navigate("/checkout", { state: { bookingData: bookingInfo } });
-      } catch (err) {
-        console.error(err);
-        alert("Failed to create booking. Please try again.");
-      } finally {
-        setIsSubmitting(false);
-      }
+      setShowConfirmation(true);
     } else {
       setStep(step + 1);
+    }
+  };
+
+  const handleFinalSubmit = async () => {
+    setIsSubmitting(true);
+    setShowConfirmation(false);
+    try {
+      const bookingInfo = {
+        ...formData,
+        catererId: suggestion ? "smart-suggested" : "mock-caterer-1",
+        packageName: suggestion?.packageName || "Standard Menu",
+        totalCost: formData.guests * (suggestion?.pricePerHead || 1200),
+        items: suggestion?.dishes || []
+      };
+      
+      await createBooking(bookingInfo);
+      
+      navigate("/checkout", { state: { bookingData: bookingInfo } });
+    } catch (err) {
+      console.error(err);
+      alert("Failed to create booking. Please try again.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -232,6 +238,60 @@ export const BookingFlow = () => {
 
       {step === 1 && <Step1 />}
       {step === 2 && <Step2 />}
+
+      {/* Confirmation Modal */}
+      <AnimatePresence>
+        {showConfirmation && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-brand-charcoal/60 p-6 backdrop-blur-sm">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="w-full max-w-md overflow-hidden rounded-[40px] bg-white p-8 shadow-2xl"
+            >
+              <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-brand-gold/10 text-brand-gold mx-auto">
+                <CheckCircle2 size={40} />
+              </div>
+              <h3 className="text-center font-display text-2xl font-black text-brand-charcoal mb-4">Confirm Your Booking</h3>
+              <p className="text-center text-brand-charcoal/60 mb-8">Please review your event details before proceeding.</p>
+
+              <div className="space-y-4 mb-8 bg-brand-cream/50 p-6 rounded-3xl border border-brand-beige">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold uppercase tracking-widest text-brand-charcoal/40">Event Date</span>
+                  <span className="font-bold text-brand-charcoal">{formData.date}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold uppercase tracking-widest text-brand-charcoal/40">Guests</span>
+                  <span className="font-bold text-brand-charcoal">{formData.guests} people</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold uppercase tracking-widest text-brand-charcoal/40">Package</span>
+                  <span className="font-bold text-brand-charcoal">{suggestion?.packageName || "Standard Menu"}</span>
+                </div>
+                <div className="pt-4 border-t border-brand-beige flex justify-between items-center">
+                  <span className="text-sm font-black text-brand-charcoal">Estimated Total</span>
+                  <span className="text-xl font-black text-brand-green">Rs. {(formData.guests * (suggestion?.pricePerHead || 1200)).toLocaleString()}</span>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-3">
+                <button 
+                  onClick={handleFinalSubmit}
+                  className="w-full rounded-2xl bg-brand-gold py-4 font-black text-brand-green shadow-xl active:scale-95 transition-all"
+                >
+                  Confirm & Checkout
+                </button>
+                <button 
+                  onClick={() => setShowConfirmation(false)}
+                  className="w-full rounded-2xl bg-brand-charcoal/5 py-4 font-bold text-brand-charcoal active:scale-95 transition-all"
+                >
+                  Review Details
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {step < 3 && (
         <div className="fixed bottom-32 left-0 right-0 z-40 px-6 pointer-events-none">

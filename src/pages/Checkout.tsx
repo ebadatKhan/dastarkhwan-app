@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "motion/react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { 
   CreditCard, 
   ChevronLeft, 
@@ -10,7 +10,8 @@ import {
   Users, 
   Clock,
   ArrowRight,
-  ShieldCheck
+  ShieldCheck,
+  PackageCheck
 } from "lucide-react";
 import { auth } from "../lib/firebase";
 import { sendBookingEmail } from "../services/notificationService";
@@ -18,31 +19,59 @@ import { sendBookingEmail } from "../services/notificationService";
 export default function Checkout() {
   const navigate = useNavigate();
   const location = useLocation();
-  const bookingData = location.state?.bookingData || {};
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [isCompleted, setIsCompleted] = useState(false);
+  const [searchParams] = useSearchParams();
+  const bookingData = location.state?.bookingData || JSON.parse(localStorage.getItem("pending_booking") || "{}");
+  
+  const [isProcessing, setIsProcessing] = useState(searchParams.get("success") === "true");
+  const [isCompleted, setIsCompleted] = useState(searchParams.get("success") === "true");
+  const [paymentMethod, setPaymentMethod] = useState<"online" | "cash">("online");
 
-  const totalCost = bookingData.totalCost || 0;
+  useEffect(() => {
+    if (location.state?.bookingData) {
+      localStorage.setItem("pending_booking", JSON.stringify(location.state.bookingData));
+    }
+  }, [location.state]);
 
-  const handlePayment = () => {
+  const totalCost = (bookingData.totalCost || 0) + (paymentMethod === "cash" ? 200 : 0);
+
+  const handlePayment = async () => {
     setIsProcessing(true);
-    // Simulate payment processing
+
+    if (paymentMethod === "online") {
+      try {
+        const response = await fetch("/api/create-checkout-session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ bookingData: { ...bookingData, totalCost } }),
+        });
+
+        const session = await response.json();
+        if (session.url) {
+          window.location.href = session.url;
+        } else {
+          throw new Error("Failed to create session");
+        }
+      } catch (error) {
+        console.error("Payment error:", error);
+        alert("Payment service is currently unavailable. Please try Cash Collection.");
+        setIsProcessing(false);
+      }
+      return;
+    }
+
+    // Cash Collection path
     setTimeout(async () => {
       setIsProcessing(false);
       setIsCompleted(true);
       
-      // Send confirmation email
       if (auth.currentUser?.email) {
         await sendBookingEmail(auth.currentUser.email, {
-          packageName: bookingData.packageName || "Standard Menu",
-          date: bookingData.date,
-          time: bookingData.time,
-          guests: bookingData.guests,
-          totalCost: totalCost,
-          address: bookingData.address
+          ...bookingData,
+          paymentMethod: "Cash Collection",
+          totalCost: totalCost
         });
       }
-    }, 2500);
+    }, 2000);
   };
 
   if (isCompleted) {
@@ -70,8 +99,8 @@ export default function Checkout() {
                 <span className="text-sm font-bold text-brand-charcoal">{bookingData.packageName || "Standard Menu"}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm text-brand-charcoal/70">Guests</span>
-                <span className="text-sm font-bold text-brand-charcoal">{bookingData.guests}</span>
+                <span className="text-sm text-brand-charcoal/70">Payment</span>
+                <span className="text-sm font-bold text-brand-charcoal capitalize">{paymentMethod}</span>
               </div>
               <div className="flex justify-between items-center pt-4 border-t border-brand-beige">
                 <span className="font-bold text-brand-charcoal">Amount Paid</span>
@@ -113,7 +142,7 @@ export default function Checkout() {
                   <p className="text-[10px] font-bold text-brand-green uppercase tracking-widest mb-1">Package</p>
                   <h4 className="font-bold text-brand-charcoal">{bookingData.packageName || "Selected Plan"}</h4>
                 </div>
-                <Users size={20} className="text-brand-gold" />
+                <PackageCheck size={20} className="text-brand-gold" />
               </div>
               
               <div className="grid grid-cols-2 gap-4 pt-4 border-t border-brand-beige/50">
@@ -141,33 +170,43 @@ export default function Checkout() {
 
         {/* Payment Methods */}
         <section className="space-y-4">
-          <h3 className="text-[10px] font-black uppercase tracking-widest text-brand-charcoal/40 px-2">Payment Method</h3>
+          <h3 className="text-[10px] font-black uppercase tracking-widest text-brand-charcoal/40 px-2">Choose Payment Method</h3>
           <div className="space-y-3">
-            <div className="bg-white rounded-2xl p-5 border-2 border-brand-green shadow-sm flex items-center justify-between">
+            <button 
+              onClick={() => setPaymentMethod("online")}
+              className={`w-full text-left bg-white rounded-2xl p-5 border-2 transition-all shadow-sm flex items-center justify-between ${paymentMethod === "online" ? "border-brand-green" : "border-brand-beige"}`}
+            >
               <div className="flex items-center gap-4">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-green text-brand-gold">
+                <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${paymentMethod === "online" ? "bg-brand-green text-brand-gold" : "bg-brand-cream text-brand-charcoal/40"}`}>
                   <CreditCard size={20} />
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-sm font-bold text-brand-charcoal">Online Payment</span>
-                  <span className="text-xs text-brand-charcoal/40">Pay via Card/Easypaisa</span>
+                  <span className={`text-sm font-bold ${paymentMethod === "online" ? "text-brand-charcoal" : "text-brand-charcoal/60"}`}>Real Online Payment</span>
+                  <span className="text-xs text-brand-charcoal/40 font-medium">Stripe • Visa / Mastercard</span>
                 </div>
               </div>
-              <div className="h-5 w-5 rounded-full border-4 border-brand-green" />
-            </div>
+              <div className={`h-5 w-5 rounded-full border-2 ${paymentMethod === "online" ? "border-brand-green bg-brand-green ring-4 ring-brand-green/10" : "border-brand-beige"}`}>
+                {paymentMethod === "online" && <div className="h-full w-full flex items-center justify-center"><CheckCircle2 size={12} className="text-brand-gold" /></div>}
+              </div>
+            </button>
             
-            <div className="bg-white rounded-2xl p-5 border border-brand-beige opacity-60 flex items-center justify-between">
+            <button 
+              onClick={() => setPaymentMethod("cash")}
+              className={`w-full text-left bg-white rounded-2xl p-5 border-2 transition-all shadow-sm flex items-center justify-between ${paymentMethod === "cash" ? "border-brand-green" : "border-brand-beige"}`}
+            >
               <div className="flex items-center gap-4">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-beige text-brand-charcoal/40">
+                <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${paymentMethod === "cash" ? "bg-brand-green text-brand-gold" : "bg-brand-cream text-brand-charcoal/40"}`}>
                   <MapPin size={20} />
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-sm font-bold text-brand-charcoal">Cash Collection</span>
-                  <span className="text-xs text-brand-charcoal/40">At your doorstep (+Rs. 200)</span>
+                  <span className={`text-sm font-bold ${paymentMethod === "cash" ? "text-brand-charcoal" : "text-brand-charcoal/60"}`}>Cash Collection</span>
+                  <span className="text-xs text-brand-charcoal/40 font-medium">At your doorstep (+Rs. 200 fee)</span>
                 </div>
               </div>
-              <div className="h-5 w-5 rounded-full border border-brand-beige" />
-            </div>
+              <div className={`h-5 w-5 rounded-full border-2 ${paymentMethod === "cash" ? "border-brand-green bg-brand-green ring-4 ring-brand-green/10" : "border-brand-beige"}`}>
+                {paymentMethod === "cash" && <div className="h-full w-full flex items-center justify-center"><CheckCircle2 size={12} className="text-brand-gold" /></div>}
+              </div>
+            </button>
           </div>
         </section>
 
@@ -179,30 +218,30 @@ export default function Checkout() {
       </div>
 
       {/* Bottom Bar */}
-      <footer className="fixed bottom-0 left-0 right-0 p-6 bg-white border-t border-brand-beige shadow-[0_-10px_30px_rgba(0,0,0,0.05)] max-w-md mx-auto">
+      <footer className="fixed bottom-0 left-0 right-0 p-6 bg-white border-t border-brand-beige shadow-[0_-10px_30px_rgba(0,0,0,0.05)] max-w-md mx-auto z-50">
         <div className="flex items-center justify-between mb-4">
           <div className="flex flex-col">
-            <span className="text-[10px] font-bold text-brand-charcoal/40 uppercase">Total Amount</span>
+            <span className="text-[10px] font-bold text-brand-charcoal/40 uppercase">Payable Amount</span>
             <span className="text-2xl font-black text-brand-green">Rs. {totalCost.toLocaleString()}</span>
           </div>
           <div className="text-right">
-            <span className="text-[10px] font-bold text-brand-gold uppercase block">Taxes included</span>
-            <span className="text-xs font-medium text-brand-charcoal/60">Secure Payment</span>
+            <span className="text-[10px] font-bold text-brand-gold uppercase block">Final Booking</span>
+            <span className="text-xs font-medium text-brand-charcoal/60">Includes all fees</span>
           </div>
         </div>
         <button 
           onClick={handlePayment}
           disabled={isProcessing}
-          className="w-full bg-brand-green py-5 rounded-3xl font-black text-brand-gold shadow-lg active:scale-95 transition-all flex items-center justify-center gap-3 relative overflow-hidden group"
+          className="w-full bg-brand-green py-5 rounded-3xl font-black text-brand-gold shadow-lg active:scale-95 transition-all flex items-center justify-center gap-3 relative overflow-hidden group disabled:opacity-70"
         >
           {isProcessing ? (
             <div className="flex items-center gap-3">
               <div className="h-5 w-5 border-2 border-brand-gold border-t-transparent animate-spin rounded-full" />
-              <span className="uppercase tracking-widest text-sm">Processing...</span>
+              <span className="uppercase tracking-widest text-sm font-black">Redirecting...</span>
             </div>
           ) : (
             <>
-              <span className="uppercase tracking-widest text-sm">Confirm & Pay</span>
+              <span className="uppercase tracking-widest text-sm font-black">{paymentMethod === "online" ? "Pay with Stripe" : "Finalize Order"}</span>
               <ArrowRight size={20} />
             </>
           )}
